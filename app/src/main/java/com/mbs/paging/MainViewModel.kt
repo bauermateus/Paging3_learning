@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import retrofit2.Call
 import retrofit2.Callback
@@ -18,26 +19,21 @@ class MainViewModel @Inject constructor(private val repository: MainRepository):
     private val _list = MutableLiveData<List<ResponseModelItem>>()
     val list: LiveData<List<ResponseModelItem>> = _list
 
+    var job: Job? = null
+
     init {
         request()
     }
 
     private fun request() {
-        viewModelScope.launch(Dispatchers.IO) {
-        val call = repository.request()
-            call.enqueue(object : Callback<List<ResponseModelItem>> {
-                override fun onResponse(
-                    call: Call<List<ResponseModelItem>>,
-                    response: Response<List<ResponseModelItem>>
-                ) {
-                    if (response.isSuccessful) _list.postValue(response.body())
-                }
-
-                override fun onFailure(call: Call<List<ResponseModelItem>>, t: Throwable) {
+        job = viewModelScope.launch(Dispatchers.IO) {
+            repository.request()
+                .catch { t ->
                     t.printStackTrace()
                 }
-
-            })
+                .collect {
+                    _list.postValue(it)
+                }
         }
     }
 }
